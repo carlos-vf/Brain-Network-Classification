@@ -3,6 +3,7 @@
 import networkx as nx
 import os
 import numpy as np
+import sys
 from itertools import combinations_with_replacement
 from sklearn.linear_model import LogisticRegression
 from sklearn import metrics
@@ -169,7 +170,7 @@ class GraphClassifier2:
      def __init__(self, groupA, groupB, exclusiveEdges, model, centrality, thetas=[0.0]):
          
          # Check arguments
-         if centrality not in ('metaScores', 'edgeBetweenness', 'metaScores*edgeBetweenness', 'eigenVector', 'closeness'):
+         if centrality not in ('metaScores', 'edgeBetweenness', 'metaScores*edgeBetweenness', 'eigenvectors', 'closeness'):
              print("ERROR")
          
          
@@ -185,14 +186,15 @@ class GraphClassifier2:
              self.metaGraphs = []
              for theta in thetas:
                  metaGraphA, metaGraphB = self.createMetaGraphs(theta) 
-                 self.computeEdgeBetweenness(metaGraphA)
-                 self.computeEdgeBetweenness(metaGraphB)
+                 if centrality == 'edgeBetweenness' or centrality == 'metaScores*edgeBetweenness':
+                     self.computeEdgeBetweenness(metaGraphA)
+                     self.computeEdgeBetweenness(metaGraphB)
                  self.metaGraphs.append([metaGraphA, metaGraphB])
 
-             # Compute metaScores and/or edgeBetweenness
+             # Compute metaScores and/or edgeBetweenness scores
              self.predictors = self.getScores()
              
-         elif centrality == 'eigenVector':
+         elif centrality == 'eigenvectors':
              self.predictors = self.computeEigenVectors(normalize=True)
    
          elif centrality == 'closeness':
@@ -380,7 +382,7 @@ class GraphClassifier2:
                  preds.append(scores[0])
                  preds.append(scores[1])
                  
-         elif self.centrality == 'eigenVector':
+         elif self.centrality == 'eigenvectors':
              ev = list(nx.eigenvector_centrality(graph, max_iter=400).values())
              maximum = max(ev)
              minimum = min(ev)
@@ -389,6 +391,7 @@ class GraphClassifier2:
          elif self.centrality == 'closeness':
              preds = list(nx.closeness_centrality(graph).values())
          
+            
          if self.code == 'LR':
              prediction = self.model.predict([preds])[0]
              distance = self.model.decision_function([preds])[0]
@@ -647,7 +650,7 @@ def thetaLOOCV(dirs):
     """
     Summary
     ----------
-    Performs a leave-one-out cross-validation over a graph classification
+    Performs a leave-one-out cross-validation over a graph classification for all thetas
 
 
     Parameters
@@ -746,6 +749,17 @@ def stratifiedCV(dirs, splits, exclusiveEdges, model, centrality, thetas = [0.0]
     
     exclusiveEdges: If True, when calculating scores for classification, only edges exclusive in one 
         of the two metagraphs are taken into account. If False, all edges are used.
+    
+    model: classification model. Possible codes are:
+        LR -> Logistic Regression
+        NN -> Neural Network
+        
+    centrality: centrality metric to be used as predictor for classification. Possible codes are:
+        metaScores -> Metagraphs' scores based on edge proportion
+        edgeBetweenness -> Edge betweenness' scores
+        metaScores*edgeBetweenness -> Product of both metrics metaScores * edgeBetweenness
+        eigenvectors -> Eigenvectors of graph's nodes
+        closeness -> Closeness of graph's nodes
         
     thetas: List of thetas which define the metagraphs to be computed for classification
     
@@ -809,52 +823,57 @@ def stratifiedCV(dirs, splits, exclusiveEdges, model, centrality, thetas = [0.0]
 
 
 
-###################### DATASET ######################
 
+###################### ARGUMENTS ####################
+args = sys.argv
+d = list(args[1].split(","))
+s = int(args[2])
+if args[3].lower() in ["true", "1"]:
+    e = True
+else:
+    e = False
+m = args[4]
+c = args[5]
+if len(args) == 7:
+    t = [float(x) for x in list(args[6].split(","))]
+else:
+    t = [0]
+    
+
+
+###################### DATASET ######################
 dirs = []
 
-dir1 = "datasets/adolescents/td/"
-c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
-dir2 = "datasets/adolescents/asd/"
-c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
-dirs.append([c1, c2])
+if 'adolescents' in d:
+    dir1 = "datasets/adolescents/td/"
+    c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
+    dir2 = "datasets/adolescents/asd/"
+    c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
+    dirs.append([c1, c2])
 
-dir1 = "datasets/eyesclosed/td/"
-c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
-dir2 = "datasets/eyesclosed/asd/"
-c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
-dirs.append([c1, c2])
+if 'eyesclosed' in d:
+    dir1 = "datasets/eyesclosed/td/"
+    c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
+    dir2 = "datasets/eyesclosed/asd/"
+    c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
+    dirs.append([c1, c2])
 
-dir1 = "datasets/male/td/"
-c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
-dir2 = "datasets/male/asd/"
-c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
-dirs.append([c1, c2])
+if 'male' in d:
+    dir1 = "datasets/male/td/"
+    c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
+    dir2 = "datasets/male/asd/"
+    c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
+    dirs.append([c1, c2])
 
-dir1 = "datasets/children/td/"
-c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
-dir2 = "datasets/children/asd/"
-c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
-dirs.append([c1, c2])
-
-
-# =============================================================================
-# dir1 = "datasets/test/td/"
-# c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
-# dir2 = "datasets/test/asd/"
-# c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
-# dirs.append([c1, c2])
-# =============================================================================
+if 'children' in d:
+    dir1 = "datasets/children/td/"
+    c1 = ["{}{}".format(dir1,elem) for elem in os.listdir(dir1)]
+    dir2 = "datasets/children/asd/"
+    c2 = ["{}{}".format(dir2,elem) for elem in os.listdir(dir2)]
+    dirs.append([c1, c2])
 
 
-   
-#thetaLOOCV(dirs[0])
-allThetas = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
-stratifiedCV(dirs=dirs, splits=5, exclusiveEdges=False, model="NN", centrality='edgeBetweenness', thetas=allThetas)
 
-# =============================================================================
-# r = []
-# for t in allThetas:
-#     r.append((t, stratifiedCV(dirs, 5, True, [t])))
-# print(r)
-# =============================================================================
+results = stratifiedCV(dirs=dirs, splits=s, exclusiveEdges=e, model=m, centrality=c, thetas=t)
+print(results)
+
